@@ -119,13 +119,23 @@
   <div class="card">
     <h1>Texture scale ordering</h1>
     <p>You'll see eight sets of seven images. Each set is the same picture rendered at seven different texture scales.</p>
-    <p>Drag the images into order, from the finest texture on the left to the coarsest on the right. Click any image to see it larger.</p>
+    <p>Drag the images into order, from the finest texture first to the coarsest last. You'll see a worked example before you start. Click any image to see it larger, and use the size control if the differences are hard to make out.</p>
     <p>If a set doesn't seem to have a single sensible order, put it in your best guess and tick the box below the strip. That's a useful answer, not a failure — it's the thing this pilot is looking for.</p>
     <p>About ten minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
     <label for="pid">Your initials</label>
     <input type="text" id="pid" maxlength="24" autocomplete="off" spellcheck="false">
     <p style="margin-top:18px"><button class="primary" id="go">Start</button></p>
   </div>
+</section>
+
+<section id="s-demo" class="screen">
+  <div class="bar">
+    <h1 style="margin:0">Worked example</h1>
+    <span class="count">not one of the eight sets</span>
+  </div>
+  <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 7 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
+  <div class="strip" id="demo-strip" style="--cols:4"></div>
+  <p style="margin: 6px 0 0"><button class="primary" id="demo-go">I understand — begin</button></p>
 </section>
 
 <section id="s-load" class="screen">
@@ -204,6 +214,11 @@ const CONFIG = {
   // Must match the exported filenames. If your steps are 0-based, change
   // `steps` above to [0,1,2,3,4,5,6] rather than editing this.
   imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.jpg`,
+
+  // Worked example shown before the task. Must NOT be one of the eight
+  // study sweeps — showing its answer would contaminate that stimulus.
+  // Set to null to skip the example screen.
+  demoSet: "set09",
 
   // Width in CSS pixels used by the main MLDS study. The enlarge view uses
   // this so observers can check detail at true study size.
@@ -429,9 +444,37 @@ $("copy").addEventListener("click", async () => {
   }
 });
 
+/* ── worked example ─────────────────────────────────────────── */
+function buildDemo() {
+  const strip = $("demo-strip");
+  strip.innerHTML = "";
+  CONFIG.steps.forEach((step, i) => {
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.style.cursor = "zoom-in";
+    const src = CONFIG.imagePath(CONFIG.demoSet, step);
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    img.onerror = () => {
+      img.remove();
+      const m = document.createElement("div");
+      m.className = "missing";
+      m.textContent = "not found\n" + src;
+      el.insertBefore(m, el.firstChild);
+    };
+    el.appendChild(img);
+    const pos = document.createElement("span");
+    pos.className = "pos";
+    pos.textContent = i + 1;
+    el.appendChild(pos);
+    el.addEventListener("click", () => openLb(src));
+    strip.appendChild(el);
+  });
+}
+
 /* ── boot ───────────────────────────────────────────────────── */
-$("go").addEventListener("click", async () => {
-  session.participant = $("pid").value.trim().replace(/[^\w-]/g, "") || "anon";
+async function beginStudy() {
   order = CONFIG.sets.slice();
   if (CONFIG.shuffleSets) shuffle(order);
 
@@ -452,7 +495,14 @@ $("go").addEventListener("click", async () => {
     return;
   }
   startTrial();
+}
+
+$("go").addEventListener("click", () => {
+  session.participant = $("pid").value.trim().replace(/[^\w-]/g, "") || "anon";
+  if (CONFIG.demoSet) { buildDemo(); show("s-demo"); }
+  else beginStudy();
 });
+$("demo-go").addEventListener("click", beginStudy);
 $("miss-go").addEventListener("click", startTrial);
 $("pid").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
 </script>
