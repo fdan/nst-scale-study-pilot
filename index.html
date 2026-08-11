@@ -57,7 +57,12 @@
     border: 1px solid var(--line); background: #666;
     cursor: grab; user-select: none;
   }
+  .tile { min-height: 90px; }
   .tile img { display: block; width: 100%; height: auto; pointer-events: none; }
+  .missing {
+    padding: 26px 8px; text-align: center; font-size: 11px;
+    color: #ffb4b4; word-break: break-all; line-height: 1.4;
+  }
   .tile.dragging { opacity: .35; cursor: grabbing; }
   .tile.over { border-color: var(--mark); }
   .tile:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
@@ -124,6 +129,16 @@
   </div>
 </section>
 
+<section id="s-missing" class="screen">
+  <div class="card">
+    <h1>Images not found</h1>
+    <p id="miss-count"></p>
+    <p>Check these paths against what's actually in <code>images/</code> — usually the file extension or the step numbering in <code>CONFIG.imagePath</code>.</p>
+    <pre id="miss-list"></pre>
+    <p><button id="miss-go">Continue anyway</button></p>
+  </div>
+</section>
+
 <section id="s-task" class="screen">
   <div class="bar">
     <h1 style="margin:0">Arrange by texture scale</h1>
@@ -172,8 +187,9 @@ const CONFIG = {
   // Scale steps per sweep, ascending. Step 1 = finest texture.
   steps: [1,2,3,4,5,6,7],
 
-  // Must match the exported filenames.
-  imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.webp`,
+  // Must match the exported filenames. If your steps are 0-based, change
+  // `steps` above to [0,1,2,3,4,5,6] rather than editing this.
+  imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.jpg`,
 
   // Width in CSS pixels used by the main MLDS study. The enlarge view uses
   // this so observers can check detail at true study size.
@@ -214,13 +230,14 @@ function inversions(arr, ascending) {
 /* ── preload ────────────────────────────────────────────────── */
 function preload(paths, onProgress) {
   let done = 0;
+  const failed = [];
   return Promise.all(paths.map(p => new Promise(res => {
     const im = new Image();
     const tick = () => { onProgress(++done, paths.length); res(); };
     im.onload = tick;
-    im.onerror = () => { console.warn("missing:", p); tick(); };
+    im.onerror = () => { failed.push(p); tick(); };
     im.src = p;
-  })));
+  }))).then(() => failed);
 }
 
 /* ── render the current strip ───────────────────────────────── */
@@ -236,9 +253,17 @@ function render() {
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `Position ${i+1} of ${tiles.length}. Arrow keys to move.`);
 
+    const src = CONFIG.imagePath(order[idx], step);
     const img = document.createElement("img");
-    img.src = CONFIG.imagePath(order[idx], step);
+    img.src = src;
     img.alt = "";
+    img.onerror = () => {
+      img.remove();
+      const m = document.createElement("div");
+      m.className = "missing";
+      m.textContent = "not found\n" + src;
+      el.insertBefore(m, el.firstChild);
+    };
     el.appendChild(img);
 
     const pos = document.createElement("span");
@@ -386,14 +411,22 @@ $("go").addEventListener("click", async () => {
   show("s-load");
   const paths = [];
   order.forEach(s => CONFIG.steps.forEach(st => paths.push(CONFIG.imagePath(s, st))));
-  await preload(paths, (d, n) => {
+  const failed = await preload(paths, (d, n) => {
     $("load-bar").style.width = (100 * d / n) + "%";
     $("load-text").textContent = `Loading images… ${d} of ${n}`;
   });
 
   idx = 0;
+  if (failed.length) {
+    $("miss-count").textContent =
+      `${failed.length} of ${paths.length} images failed to load. First 12 shown:`;
+    $("miss-list").textContent = failed.slice(0, 12).join("\n");
+    show("s-missing");
+    return;
+  }
   startTrial();
 });
+$("miss-go").addEventListener("click", startTrial);
 $("pid").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
 </script>
 </body>
