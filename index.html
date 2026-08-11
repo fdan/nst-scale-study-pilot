@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texture scale ordering — pilot</title>
+<style>
+  :root {
+    --surround: #7a7a7a;      /* neutral mid-grey: keeps simultaneous contrast off the stimuli */
+    --panel: #6e6e6e;
+    --ink: #f2f2f2;
+    --ink-dim: #cfcfcf;
+    --line: #5c5c5c;
+    --mark: #e8c547;           /* single accent, used only for active/selected state */
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--surround); color: var(--ink);
+    font-family: var(--mono); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; }
+  p { margin: 0 0 12px; max-width: 68ch; color: var(--ink-dim); }
+  .screen { display: none; }
+  .screen.on { display: block; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    padding: 22px 24px; max-width: 74ch; margin: 40px auto;
+  }
+  label { display: block; margin: 16px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); }
+  input[type=text], textarea {
+    width: 100%; background: #5f5f5f; color: var(--ink);
+    border: 1px solid var(--line); padding: 9px 10px; font: inherit;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  button {
+    font: inherit; background: #5f5f5f; color: var(--ink);
+    border: 1px solid var(--line); padding: 9px 18px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #565656; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--mark); color: #2a2a2a; border-color: var(--mark); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #f0d05c; }
+  :focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+
+  .bar { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 6px; }
+  .count { font-size: 12px; letter-spacing: .08em; color: var(--ink-dim); }
+  .prompt { margin: 0 0 16px; color: var(--ink); }
+
+  .strip { display: flex; gap: 8px; align-items: stretch; margin: 0 0 18px; }
+  .tile {
+    flex: 1 1 0; min-width: 0; position: relative;
+    border: 1px solid var(--line); background: #666;
+    cursor: grab; user-select: none;
+  }
+  .tile img { display: block; width: 100%; height: auto; pointer-events: none; }
+  .tile.dragging { opacity: .35; cursor: grabbing; }
+  .tile.over { border-color: var(--mark); }
+  .tile:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+  .pos {
+    position: absolute; left: 0; top: 0; padding: 2px 6px;
+    background: rgba(0,0,0,.55); font-size: 11px; letter-spacing: .06em;
+  }
+  .zoom {
+    position: absolute; right: 4px; bottom: 4px;
+    background: rgba(0,0,0,.55); border: 0; color: var(--ink);
+    padding: 3px 7px; font-size: 11px; cursor: zoom-in;
+  }
+  .ends { display: flex; justify-content: space-between; font-size: 11px;
+          letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 20px; }
+
+  .flag { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 14px; max-width: 68ch; }
+  .flag input { margin-top: 4px; }
+  .flag span { color: var(--ink-dim); }
+
+  .lightbox {
+    position: fixed; inset: 0; background: var(--surround);
+    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 20;
+  }
+  .lightbox.on { display: flex; }
+  .lightbox img { border: 1px solid var(--line); }
+
+  .loading { text-align: center; padding: 80px 0; color: var(--ink-dim); }
+  .track { height: 2px; background: var(--line); margin-top: 14px; }
+  .track > div { height: 100%; background: var(--mark); width: 0; transition: width .15s linear; }
+
+  pre {
+    background: #5f5f5f; border: 1px solid var(--line); padding: 12px;
+    max-height: 260px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 900px) {
+    .strip { flex-wrap: wrap; }
+    .tile { flex: 0 0 calc(25% - 6px); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ═══ CONFIG lives in the script block at the bottom ═══ -->
+
+<section id="s-intro" class="screen on">
+  <div class="card">
+    <h1>Texture scale ordering</h1>
+    <p>You'll see eight sets of seven images. Each set is the same picture rendered at seven different texture scales.</p>
+    <p>Drag the images into order, from the finest texture on the left to the coarsest on the right. Click any image to see it larger.</p>
+    <p>If a set doesn't seem to have a single sensible order, put it in your best guess and tick the box below the strip. That's a useful answer, not a failure — it's the thing this pilot is looking for.</p>
+    <p>About ten minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
+    <label for="pid">Your initials</label>
+    <input type="text" id="pid" maxlength="24" autocomplete="off" spellcheck="false">
+    <p style="margin-top:18px"><button class="primary" id="go">Start</button></p>
+  </div>
+</section>
+
+<section id="s-load" class="screen">
+  <div class="loading">
+    <div id="load-text">Loading images…</div>
+    <div class="track"><div id="load-bar"></div></div>
+  </div>
+</section>
+
+<section id="s-task" class="screen">
+  <div class="bar">
+    <h1 style="margin:0">Arrange by texture scale</h1>
+    <span class="count" id="count"></span>
+  </div>
+  <p class="prompt">Finest texture on the left, coarsest on the right. Drag to reorder, or focus an image and use the arrow keys. Click an image to enlarge it.</p>
+  <div class="strip" id="strip"></div>
+  <div class="ends"><span>← finest</span><span>coarsest →</span></div>
+  <div class="flag">
+    <input type="checkbox" id="ambig">
+    <label for="ambig" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px">
+      <span>This set has no clear single order — the images differ in more than just texture scale.</span>
+    </label>
+  </div>
+  <div id="note-wrap" style="display:none">
+    <label for="note">What made it ambiguous? (optional)</label>
+    <textarea id="note" maxlength="400"></textarea>
+  </div>
+  <p style="margin-top:18px"><button class="primary" id="next">Confirm order</button></p>
+</section>
+
+<section id="s-done" class="screen">
+  <div class="card">
+    <h1>Done — thank you</h1>
+    <p>Your results file should have downloaded. If it didn't, use the button below, or copy the text and paste it into an email.</p>
+    <p><button class="primary" id="dl">Download again</button> <button id="copy">Copy to clipboard</button></p>
+    <pre id="out"></pre>
+  </div>
+</section>
+
+</div>
+
+<div class="lightbox" id="lb">
+  <img id="lb-img" alt="">
+  <button id="lb-close">Close</button>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   CONFIG — the only part you should need to edit.
+   ══════════════════════════════════════════════════════════════ */
+const CONFIG = {
+  // The eight sweeps selected for the main study.
+  sets: ["set01","set02","set03","set04","set05","set06","set07","set08"],
+
+  // Scale steps per sweep, ascending. Step 1 = finest texture.
+  steps: [1,2,3,4,5,6,7],
+
+  // Must match the exported filenames.
+  imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.webp`,
+
+  // Width in CSS pixels used by the main MLDS study. The enlarge view uses
+  // this so observers can check detail at true study size.
+  studyWidth: 480,
+
+  // Set false to keep sweeps in listed order (useful when debugging).
+  shuffleSets: true
+};
+/* ════════════════════════════════════════════════════════════ */
+
+const $ = id => document.getElementById(id);
+const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.random()*(i+1)|0; [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const show = id => { document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on"); };
+
+const session = {
+  participant: "",
+  started: new Date().toISOString(),
+  finished: null,
+  viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 },
+  studyWidth: CONFIG.studyWidth,
+  trials: []
+};
+
+let order = [];        // sets, in presentation order
+let idx = 0;           // index into order
+let tiles = [];        // step numbers, left to right
+let trialStart = 0;
+
+/* ── inversion count against a target direction ─────────────── */
+function inversions(arr, ascending) {
+  let n = 0;
+  for (let i=0;i<arr.length;i++)
+    for (let j=i+1;j<arr.length;j++)
+      if (ascending ? arr[i] > arr[j] : arr[i] < arr[j]) n++;
+  return n;
+}
+
+/* ── preload ────────────────────────────────────────────────── */
+function preload(paths, onProgress) {
+  let done = 0;
+  return Promise.all(paths.map(p => new Promise(res => {
+    const im = new Image();
+    const tick = () => { onProgress(++done, paths.length); res(); };
+    im.onload = tick;
+    im.onerror = () => { console.warn("missing:", p); tick(); };
+    im.src = p;
+  })));
+}
+
+/* ── render the current strip ───────────────────────────────── */
+function render() {
+  const strip = $("strip");
+  strip.innerHTML = "";
+  tiles.forEach((step, i) => {
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.draggable = true;
+    el.tabIndex = 0;
+    el.dataset.i = i;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `Position ${i+1} of ${tiles.length}. Arrow keys to move.`);
+
+    const img = document.createElement("img");
+    img.src = CONFIG.imagePath(order[idx], step);
+    img.alt = "";
+    el.appendChild(img);
+
+    const pos = document.createElement("span");
+    pos.className = "pos";
+    pos.textContent = i + 1;
+    el.appendChild(pos);
+
+    const z = document.createElement("button");
+    z.className = "zoom";
+    z.type = "button";
+    z.textContent = "enlarge";
+    z.setAttribute("aria-label", "Enlarge this image");
+    z.addEventListener("click", e => { e.stopPropagation(); openLb(img.src); });
+    el.appendChild(z);
+
+    el.addEventListener("click", () => openLb(img.src));
+    el.addEventListener("dragstart", onDragStart);
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", e => e.currentTarget.classList.remove("over"));
+    el.addEventListener("drop", onDrop);
+    el.addEventListener("dragend", e => {
+      e.currentTarget.classList.remove("dragging");
+      document.querySelectorAll(".tile").forEach(t => t.classList.remove("over"));
+    });
+    el.addEventListener("keydown", onKey);
+
+    strip.appendChild(el);
+  });
+  $("count").textContent = `set ${idx+1} of ${order.length}`;
+}
+
+/* ── drag reordering ────────────────────────────────────────── */
+let dragFrom = null;
+function onDragStart(e) {
+  dragFrom = +e.currentTarget.dataset.i;
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", String(dragFrom)); // Firefox needs this
+}
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("over"); }
+function onDrop(e) {
+  e.preventDefault();
+  const to = +e.currentTarget.dataset.i;
+  if (dragFrom === null || dragFrom === to) return;
+  const [moved] = tiles.splice(dragFrom, 1);
+  tiles.splice(to, 0, moved);
+  dragFrom = null;
+  render();
+}
+
+/* ── keyboard reordering ────────────────────────────────────── */
+function onKey(e) {
+  const i = +e.currentTarget.dataset.i;
+  let to = null;
+  if (e.key === "ArrowLeft"  && i > 0) to = i - 1;
+  if (e.key === "ArrowRight" && i < tiles.length - 1) to = i + 1;
+  if (to === null) return;
+  e.preventDefault();
+  [tiles[i], tiles[to]] = [tiles[to], tiles[i]];
+  render();
+  document.querySelector(`.tile[data-i="${to}"]`).focus();
+}
+
+/* ── lightbox at true study size ────────────────────────────── */
+function openLb(src) {
+  $("lb-img").src = src;
+  $("lb-img").style.width = CONFIG.studyWidth + "px";
+  $("lb").classList.add("on");
+  $("lb-close").focus();
+}
+$("lb-close").addEventListener("click", () => $("lb").classList.remove("on"));
+$("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").classList.remove("on"); });
+addEventListener("keydown", e => { if (e.key === "Escape") $("lb").classList.remove("on"); });
+
+/* ── trial flow ─────────────────────────────────────────────── */
+function startTrial() {
+  tiles = shuffle(CONFIG.steps.slice());
+  // avoid handing anyone a strip that is already correct
+  if (inversions(tiles, true) === 0 || inversions(tiles, false) === 0) {
+    [tiles[0], tiles[3]] = [tiles[3], tiles[0]];
+  }
+  $("ambig").checked = false;
+  $("note").value = "";
+  $("note-wrap").style.display = "none";
+  render();
+  trialStart = performance.now();
+  show("s-task");
+}
+
+$("ambig").addEventListener("change", e => {
+  $("note-wrap").style.display = e.target.checked ? "block" : "none";
+});
+
+$("next").addEventListener("click", () => {
+  session.trials.push({
+    set: order[idx],
+    order: tiles.slice(),
+    inversionsAscending: inversions(tiles, true),
+    inversionsDescending: inversions(tiles, false),
+    ms: Math.round(performance.now() - trialStart),
+    ambiguous: $("ambig").checked,
+    note: $("note").value.trim()
+  });
+  idx++;
+  if (idx < order.length) startTrial();
+  else finish();
+});
+
+/* ── finish and export ──────────────────────────────────────── */
+function filename() {
+  const t = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  return `pilot_${session.participant || "anon"}_${t}.json`;
+}
+function download() {
+  const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function finish() {
+  session.finished = new Date().toISOString();
+  $("out").textContent = JSON.stringify(session, null, 2);
+  show("s-done");
+  download();
+}
+$("dl").addEventListener("click", download);
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(session, null, 2));
+    $("copy").textContent = "Copied";
+    setTimeout(() => $("copy").textContent = "Copy to clipboard", 1600);
+  } catch {
+    $("copy").textContent = "Select the text below and copy it";
+  }
+});
+
+/* ── boot ───────────────────────────────────────────────────── */
+$("go").addEventListener("click", async () => {
+  session.participant = $("pid").value.trim().replace(/[^\w-]/g, "") || "anon";
+  order = CONFIG.sets.slice();
+  if (CONFIG.shuffleSets) shuffle(order);
+
+  show("s-load");
+  const paths = [];
+  order.forEach(s => CONFIG.steps.forEach(st => paths.push(CONFIG.imagePath(s, st))));
+  await preload(paths, (d, n) => {
+    $("load-bar").style.width = (100 * d / n) + "%";
+    $("load-text").textContent = `Loading images… ${d} of ${n}`;
+  });
+
+  idx = 0;
+  startTrial();
+});
+$("pid").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+</script>
+</body>
+</html>
