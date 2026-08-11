@@ -51,9 +51,12 @@
   .count { font-size: 12px; letter-spacing: .08em; color: var(--ink-dim); }
   .prompt { margin: 0 0 16px; color: var(--ink); }
 
-  .strip { display: flex; gap: 8px; align-items: stretch; margin: 0 0 18px; }
+  .strip {
+    display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr);
+    gap: 8px; margin: 0 0 14px;
+  }
   .tile {
-    flex: 1 1 0; min-width: 0; position: relative;
+    min-width: 0; position: relative;
     border: 1px solid var(--line); background: #666;
     cursor: grab; user-select: none;
   }
@@ -75,8 +78,12 @@
     background: rgba(0,0,0,.55); border: 0; color: var(--ink);
     padding: 3px 7px; font-size: 11px; cursor: zoom-in;
   }
-  .ends { display: flex; justify-content: space-between; font-size: 11px;
+  .ends { display: flex; justify-content: space-between; align-items: center;
+          gap: 16px; flex-wrap: wrap; font-size: 11px;
           letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 20px; }
+  .sizer { display: flex; align-items: center; gap: 6px; }
+  .sizer button { padding: 4px 10px; font-size: 11px; letter-spacing: .08em; }
+  .sizer button[aria-pressed="true"] { background: var(--mark); color: #2a2a2a; border-color: var(--mark); }
 
   .flag { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 14px; max-width: 68ch; }
   .flag input { margin-top: 4px; }
@@ -99,8 +106,7 @@
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   @media (max-width: 900px) {
-    .strip { flex-wrap: wrap; }
-    .tile { flex: 0 0 calc(25% - 6px); }
+    .strip { --cols: 2; }
   }
 </style>
 </head>
@@ -144,9 +150,17 @@
     <h1 style="margin:0">Arrange by texture scale</h1>
     <span class="count" id="count"></span>
   </div>
-  <p class="prompt">Finest texture on the left, coarsest on the right. Drag to reorder, or focus an image and use the arrow keys. Click an image to enlarge it.</p>
+  <p class="prompt">Finest texture first, coarsest last. Drag to reorder, or focus an image and use the arrow keys. If the differences are hard to see, make the images larger, or click one to view it at full size.</p>
   <div class="strip" id="strip"></div>
-  <div class="ends"><span>← finest</span><span>coarsest →</span></div>
+  <div class="ends">
+    <span>finest (1) → coarsest (7), reading left to right, top row first</span>
+    <span class="sizer">
+      <span>image size</span>
+      <button type="button" data-cols="4" aria-pressed="true">small</button>
+      <button type="button" data-cols="3" aria-pressed="false">medium</button>
+      <button type="button" data-cols="2" aria-pressed="false">large</button>
+    </span>
+  </div>
   <div class="flag">
     <input type="checkbox" id="ambig">
     <label for="ambig" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px">
@@ -338,6 +352,17 @@ $("lb-close").addEventListener("click", () => $("lb").classList.remove("on"));
 $("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").classList.remove("on"); });
 addEventListener("keydown", e => { if (e.key === "Escape") $("lb").classList.remove("on"); });
 
+/* ── image size control ─────────────────────────────────────── */
+let cols = 4;
+document.querySelectorAll(".sizer button").forEach(b => {
+  b.addEventListener("click", () => {
+    cols = +b.dataset.cols;
+    document.querySelectorAll(".sizer button").forEach(o =>
+      o.setAttribute("aria-pressed", String(o === b)));
+    $("strip").style.setProperty("--cols", cols);
+  });
+});
+
 /* ── trial flow ─────────────────────────────────────────────── */
 function startTrial() {
   tiles = shuffle(CONFIG.steps.slice());
@@ -365,7 +390,9 @@ $("next").addEventListener("click", () => {
     inversionsDescending: inversions(tiles, false),
     ms: Math.round(performance.now() - trialStart),
     ambiguous: $("ambig").checked,
-    note: $("note").value.trim()
+    note: $("note").value.trim(),
+    columns: cols,
+    tileWidthPx: Math.round(($("strip").clientWidth - (cols - 1) * 8) / cols)
   });
   idx++;
   if (idx < order.length) startTrial();
