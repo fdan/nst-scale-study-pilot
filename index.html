@@ -52,7 +52,7 @@
   .prompt { margin: 0 0 16px; color: var(--ink); }
 
   .strip {
-    display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr);
+    display: grid; grid-template-columns: repeat(var(--cols, 6), 1fr);
     gap: 8px; margin: 0 0 14px;
   }
   .tile {
@@ -106,7 +106,7 @@
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   @media (max-width: 900px) {
-    .strip { --cols: 2; }
+    .strip { --cols: 3; }
   }
 </style>
 </head>
@@ -118,10 +118,10 @@
 <section id="s-intro" class="screen on">
   <div class="card">
     <h1>Texture scale ordering</h1>
-    <p>You'll see eight sets of six images. Each set is the same picture rendered at seven different texture scales.</p>
+    <p>You'll see twelve sets of six images. Each set is the same picture rendered at six different texture scales.</p>
     <p>Drag the images into order, from the finest texture first to the coarsest last. You'll see a worked example before you start. Click any image to see it larger, and use the size control if the differences are hard to make out.</p>
     <p>If a set doesn't seem to have a single sensible order, put it in your best guess and tick the box below the strip. That's a useful answer, not a failure — it's the thing this pilot is looking for.</p>
-    <p>About ten minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
+    <p>About fifteen minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
     <label for="pid">Your initials</label>
     <input type="text" id="pid" maxlength="24" autocomplete="off" spellcheck="false">
     <p style="margin-top:18px"><button class="primary" id="go">Start</button></p>
@@ -131,10 +131,10 @@
 <section id="s-demo" class="screen">
   <div class="bar">
     <h1 style="margin:0">Worked example</h1>
-    <span class="count">not one of the eight sets</span>
+    <span class="count">not one of the twelve sets</span>
   </div>
   <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 6 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
-  <div class="strip" id="demo-strip" style="--cols:4"></div>
+  <div class="strip" id="demo-strip" style="--cols:6"></div>
   <p style="margin: 6px 0 0"><button class="primary" id="demo-go">I understand — begin</button></p>
 </section>
 
@@ -163,10 +163,10 @@
   <p class="prompt">Finest texture first, coarsest last. Drag to reorder, or focus an image and use the arrow keys. If the differences are hard to see, make the images larger, or click one to view it at full size.</p>
   <div class="strip" id="strip"></div>
   <div class="ends">
-    <span>finest (1) → coarsest (7), reading left to right, top row first</span>
+    <span>finest (1) → coarsest (6), reading left to right</span>
     <span class="sizer">
       <span>image size</span>
-      <button type="button" data-cols="4" aria-pressed="true">small</button>
+      <button type="button" data-cols="6" aria-pressed="true">small</button>
       <button type="button" data-cols="3" aria-pressed="false">medium</button>
       <button type="button" data-cols="2" aria-pressed="false">large</button>
     </span>
@@ -205,8 +205,9 @@
    CONFIG — the only part you should need to edit.
    ══════════════════════════════════════════════════════════════ */
 const CONFIG = {
-  // The eight sweeps selected for the main study.
-  sets: ["set01","set02","set03","set04","set05","set06","set07","set08"],
+  // The twelve sweeps selected for the main study.
+  sets: ["set01","set02","set03","set04","set05","set06",
+         "set07","set08","set09","set10","set11","set12"],
 
   // Scale steps per sweep, ascending. Step 1 = finest texture.
   steps: [1,2,3,4,5,6],
@@ -215,7 +216,7 @@ const CONFIG = {
   // `steps` above to [0,1,2,3,4,5,6] rather than editing this.
   imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.jpg`,
 
-  // Worked example shown before the task. Must NOT be one of the eight
+  // Worked example shown before the task. Must NOT be one of the twelve
   // study sweeps — showing its answer would contaminate that stimulus.
   // Set to null to skip the example screen.
   demoSet: "demo",
@@ -368,7 +369,7 @@ $("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").class
 addEventListener("keydown", e => { if (e.key === "Escape") $("lb").classList.remove("on"); });
 
 /* ── image size control ─────────────────────────────────────── */
-let cols = 4;
+let cols = 6;
 document.querySelectorAll(".sizer button").forEach(b => {
   b.addEventListener("click", () => {
     cols = +b.dataset.cols;
