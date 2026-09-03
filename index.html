@@ -21,7 +21,7 @@
     font-family: var(--mono); font-size: 14px; line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1600px; margin: 0 auto; padding: 24px 20px 60px; }
+  .wrap { max-width: 1920px; margin: 0 auto; padding: 24px 20px 60px; }
   h1 { font-size: 15px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; }
   p { margin: 0 0 12px; max-width: 68ch; color: var(--ink-dim); }
   .screen { display: none; }
@@ -49,7 +49,7 @@
 
   .bar { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 6px; }
   .count { font-size: 12px; letter-spacing: .08em; color: var(--ink-dim); }
-  .prompt { margin: 0 0 16px; color: var(--ink); }
+  .prompt { margin: 0 0 14px; color: var(--ink); max-width: none; }
 
   .strip {
     display: grid; grid-template-columns: repeat(4, 1fr);
@@ -75,16 +75,13 @@
     background: rgba(0,0,0,.7); font-size: 26px; font-weight: 600;
     line-height: 1.15; letter-spacing: .02em;
   }
-  .ends { display: flex; justify-content: space-between; align-items: center;
-          gap: 16px; flex-wrap: wrap; font-size: 11px;
-          letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 20px; }
+  .ends { display: flex; justify-content: flex-end; align-items: center;
+          gap: 22px; flex-wrap: wrap; font-size: 11px;
+          letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim);
+          margin: 4px 0 20px; }
   .sizer { display: flex; align-items: center; gap: 6px; }
   .sizer button { padding: 4px 10px; font-size: 11px; letter-spacing: .08em; }
   .sizer button[aria-pressed="true"] { background: var(--mark); color: #2a2a2a; border-color: var(--mark); }
-
-  .flag { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 14px; max-width: 68ch; }
-  .flag input { margin-top: 4px; }
-  .flag span { color: var(--ink-dim); }
 
   .loading { text-align: center; padding: 80px 0; color: var(--ink-dim); }
   .track { height: 2px; background: var(--line); margin-top: 14px; }
@@ -150,27 +147,16 @@
     <h1 style="margin:0">Arrange by texture scale</h1>
     <span class="count" id="count"></span>
   </div>
-  <p class="prompt">Finest texture first, coarsest last, reading along the top row then the bottom. Drag to reorder, or focus an image and use the arrow keys. Use the size control below if you'd rather see the whole set at once.</p>
+  <p class="prompt">Finest texture first, coarsest last, reading along the top row then the bottom. Drag to reorder.  Click Small to zoom out.</p>
   <div class="strip" id="strip"></div>
   <div class="ends">
-    <span>finest (1) → coarsest (8), reading left to right, top row first</span>
     <span class="sizer">
       <span>image size</span>
       <button type="button" data-size="large" aria-pressed="true">large</button>
       <button type="button" data-size="small" aria-pressed="false">small</button>
     </span>
+    <button class="primary" id="next">Next</button>
   </div>
-  <div class="flag">
-    <input type="checkbox" id="ambig">
-    <label for="ambig" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px">
-      <span>This set has no clear single order — the images differ in more than just texture scale.</span>
-    </label>
-  </div>
-  <div id="note-wrap" style="display:none">
-    <label for="note">What made it ambiguous? (optional)</label>
-    <textarea id="note" maxlength="400"></textarea>
-  </div>
-  <p style="margin-top:18px"><button class="primary" id="next">Confirm order</button></p>
 </section>
 
 <section id="s-done" class="screen">
@@ -343,7 +329,7 @@ function onKey(e) {
 /* Two rows of four. "large" lets the grid use the full column width;
    "small" caps it so the whole set sits higher on screen without
    scrolling. Tiles stay square-ish either way. */
-const SIZE_MAX = { large: "100%", small: "620px" };
+const SIZE_MAX = { large: "100%", small: "744px" };
 let sizeMode = "large";
 
 function applySize() {
@@ -363,18 +349,11 @@ function startTrial() {
   if (inversions(tiles, true) === 0 || inversions(tiles, false) === 0) {
     [tiles[0], tiles[3]] = [tiles[3], tiles[0]];
   }
-  $("ambig").checked = false;
-  $("note").value = "";
-  $("note-wrap").style.display = "none";
   render();
   show("s-task");
   applySize();
   trialStart = performance.now();
 }
-
-$("ambig").addEventListener("change", e => {
-  $("note-wrap").style.display = e.target.checked ? "block" : "none";
-});
 
 $("next").addEventListener("click", () => {
   session.trials.push({
@@ -383,8 +362,6 @@ $("next").addEventListener("click", () => {
     inversionsAscending: inversions(tiles, true),
     inversionsDescending: inversions(tiles, false),
     ms: Math.round(performance.now() - trialStart),
-    ambiguous: $("ambig").checked,
-    note: $("note").value.trim(),
     sizeMode: sizeMode,
     tileWidthPx: Math.round(($("strip").clientWidth - 3 * 8) / 4)
   });
