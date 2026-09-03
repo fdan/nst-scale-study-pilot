@@ -17,18 +17,37 @@ from scipy.stats import spearmanr
 
 
 def load(folder):
-    trials = []
+    trials, sessions = [], []
     files = sorted(glob.glob(os.path.join(folder, "pilot_*.json")))
     if not files:
         sys.exit(f"No pilot_*.json files found in {folder}")
     for f in files:
         s = json.load(open(f))
         pid = s.get("participant") or os.path.basename(f)
+        sessions.append((pid, s))
         for t in s["trials"]:
             t["participant"] = pid
             t["assigned"] = s.get("assignedSets", [])
             trials.append(t)
     print(f"{len(files)} participants, {len(trials)} orderings\n")
+
+    # flag anyone who ignored the desktop-only instruction
+    suspect = []
+    for pid, s in sessions:
+        d = s.get("device")
+        if d is None:
+            suspect.append((pid, "no device data (older version of the page)"))
+        elif not d.get("likelyDesktop"):
+            why = [k for k in ("coarsePointer", "noHover",
+                               "uaMobileString", "uaMobileHint") if d.get(k)]
+            vp = s.get("viewport", {})
+            suspect.append((pid, f"{', '.join(why) or 'unknown'}; "
+                                 f"viewport {vp.get('w')}x{vp.get('h')}"))
+    if suspect:
+        print("NOT A DESKTOP — consider excluding:")
+        for pid, why in suspect:
+            print(f"  {pid}: {why}")
+        print()
     return trials
 
 

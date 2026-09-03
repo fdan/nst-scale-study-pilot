@@ -216,11 +216,44 @@ const $ = id => document.getElementById(id);
 const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.random()*(i+1)|0; [a[i],a[j]]=[a[j],a[i]]; } return a; };
 const show = id => { document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on"); };
 
+/* ── device fingerprint ─────────────────────────────────────────
+   No single signal is reliable, so record several and let the
+   analysis decide. `touch` and `coarsePointer` catch tablets that
+   report a desktop user agent; `screen` catches a phone in
+   desktop-request mode, where innerWidth can look plausible.      */
+function deviceInfo() {
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const noHover = matchMedia("(hover: none)").matches;
+  const touch = (navigator.maxTouchPoints || 0) > 0;
+  const uaMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i
+    .test(navigator.userAgent);
+  const uaHint = navigator.userAgentData ? navigator.userAgentData.mobile : null;
+
+  // Treat it as a desktop only if nothing points the other way.
+  const likelyDesktop = !coarse && !noHover && !uaMobile && uaHint !== true;
+
+  return {
+    likelyDesktop: likelyDesktop,
+    coarsePointer: coarse,
+    noHover: noHover,
+    touchPoints: navigator.maxTouchPoints || 0,
+    hasTouch: touch,
+    uaMobileString: uaMobile,
+    uaMobileHint: uaHint,
+    screen: { w: screen.width, h: screen.height,
+              availW: screen.availWidth, availH: screen.availHeight },
+    orientation: (screen.orientation || {}).type || null,
+    platform: (navigator.userAgentData || {}).platform || navigator.platform || null,
+    userAgent: navigator.userAgent
+  };
+}
+
 const session = {
   participant: "",
   started: new Date().toISOString(),
   finished: null,
   viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 },
+  device: deviceInfo(),
   studyWidth: CONFIG.studyWidth,
   assignedSets: null,
   trials: []

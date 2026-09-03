@@ -1,0 +1,110 @@
+{
+  "participant": "df",
+  "started": "2026-09-03T23:05:48.487Z",
+  "finished": "2026-09-03T23:08:03.254Z",
+  "viewport": {
+    "w": 1802,
+    "h": 1287,
+    "dpr": 1
+  },
+  "studyWidth": 480,
+  "assignedSets": [
+    "set07",
+    "set12",
+    "set11",
+    "set03",
+    "set05"
+  ],
+  "trials": [
+    {
+      "set": "set07",
+      "order": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "inversionsAscending": 0,
+      "inversionsDescending": 28,
+      "ms": 19159,
+      "sizeMode": "large",
+      "tileWidthPx": 464
+    },
+    {
+      "set": "set12",
+      "order": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "inversionsAscending": 0,
+      "inversionsDescending": 28,
+      "ms": 11652,
+      "sizeMode": "large",
+      "tileWidthPx": 464
+    },
+    {
+      "set": "set11",
+      "order": [
+        1,
+        2,
+        3,
+        5,
+        4,
+        6,
+        7,
+        8
+      ],
+      "inversionsAscending": 1,
+      "inversionsDescending": 27,
+      "ms": 24412,
+      "sizeMode": "large",
+      "tileWidthPx": 464
+    },
+    {
+      "set": "set03",
+      "order": [
+        1,
+        2,
+        3,
+        5,
+        4,
+        6,
+        7,
+        8
+      ],
+      "inversionsAscending": 1,
+      "inversionsDescending": 27,
+      "ms": 17128,
+      "sizeMode": "large",
+      "tileWidthPx": 464
+    },
+    {
+      "set": "set05",
+      "order": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "inversionsAscending": 0,
+      "inversionsDescending": 28,
+      "ms": 20806,
+      "sizeMode": "large",
+      "tileWidthPx": 464
+    }
+  ]
+}
