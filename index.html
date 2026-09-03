@@ -52,9 +52,16 @@
   .prompt { margin: 0 0 16px; color: var(--ink); }
 
   .strip {
-    display: grid; grid-template-columns: repeat(var(--cols, 6), 1fr);
+    display: grid; grid-auto-flow: column;
+    grid-auto-columns: var(--tile, 190px);
     gap: 8px; margin: 0 0 14px;
+    overflow-x: auto; overflow-y: hidden;
+    padding-bottom: 10px;
+    scrollbar-color: var(--mark) var(--line);
   }
+  .strip::-webkit-scrollbar { height: 12px; }
+  .strip::-webkit-scrollbar-track { background: var(--line); }
+  .strip::-webkit-scrollbar-thumb { background: var(--mark); }
   .tile {
     min-width: 0; position: relative;
     border: 1px solid var(--line); background: #666;
@@ -81,9 +88,9 @@
   .ends { display: flex; justify-content: space-between; align-items: center;
           gap: 16px; flex-wrap: wrap; font-size: 11px;
           letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 20px; }
-  .sizer { display: flex; align-items: center; gap: 6px; }
-  .sizer button { padding: 4px 10px; font-size: 11px; letter-spacing: .08em; }
-  .sizer button[aria-pressed="true"] { background: var(--mark); color: #2a2a2a; border-color: var(--mark); }
+  .sizer { display: flex; align-items: center; gap: 10px; }
+  .sizer input[type="range"] { width: 200px; accent-color: var(--mark); cursor: pointer; }
+  .sizer .px { min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 
   .flag { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 14px; max-width: 68ch; }
   .flag input { margin-top: 4px; }
@@ -105,9 +112,6 @@
     max-height: 260px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all;
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  @media (max-width: 900px) {
-    .strip { --cols: 3; }
-  }
 </style>
 </head>
 <body>
@@ -118,7 +122,7 @@
 <section id="s-intro" class="screen on">
   <div class="card">
     <h1>Texture scale ordering</h1>
-    <p>You'll see twelve sets of six images. Each set is the same picture rendered at six different texture scales.</p>
+    <p>You'll see twelve sets of eight images. Each set is the same picture rendered at eight different texture scales.</p>
     <p>Drag the images into order, from the finest texture first to the coarsest last. You'll see a worked example before you start. Click any image to see it larger, and use the size control if the differences are hard to make out.</p>
     <p>If a set doesn't seem to have a single sensible order, put it in your best guess and tick the box below the strip. That's a useful answer, not a failure — it's the thing this pilot is looking for.</p>
     <p>About fifteen minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
@@ -133,8 +137,8 @@
     <h1 style="margin:0">Worked example</h1>
     <span class="count">not one of the twelve sets</span>
   </div>
-  <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 6 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
-  <div class="strip" id="demo-strip" style="--cols:6"></div>
+  <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 8 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
+  <div class="strip" id="demo-strip"></div>
   <p style="margin: 6px 0 0"><button class="primary" id="demo-go">I understand — begin</button></p>
 </section>
 
@@ -163,12 +167,12 @@
   <p class="prompt">Finest texture first, coarsest last. Drag to reorder, or focus an image and use the arrow keys. If the differences are hard to see, make the images larger, or click one to view it at full size.</p>
   <div class="strip" id="strip"></div>
   <div class="ends">
-    <span>finest (1) → coarsest (6), reading left to right</span>
+    <span>finest (1) → coarsest (8), reading left to right</span>
     <span class="sizer">
-      <span>image size</span>
-      <button type="button" data-cols="6" aria-pressed="true">small</button>
-      <button type="button" data-cols="3" aria-pressed="false">medium</button>
-      <button type="button" data-cols="2" aria-pressed="false">large</button>
+      <label for="size">image size</label>
+      <input type="range" id="size" min="0" max="6" step="1" value="0"
+             aria-label="Image size. Left fits the whole row on screen; right enlarges and scrolls.">
+      <span class="px" id="size-px"></span>
     </span>
   </div>
   <div class="flag">
@@ -210,10 +214,10 @@ const CONFIG = {
          "set07","set08","set09","set10","set11","set12"],
 
   // Scale steps per sweep, ascending. Step 1 = finest texture.
-  steps: [1,2,3,4,5,6],
+  steps: [1,2,3,4,5,6,7,8],
 
   // Must match the exported filenames. If your steps are 0-based, change
-  // `steps` above to [0,1,2,3,4,5,6] rather than editing this.
+  // `steps` above to [0,1,2,3,4,5,6,7] rather than editing this.
   imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.jpg`,
 
   // Worked example shown before the task. Must NOT be one of the twelve
@@ -368,16 +372,37 @@ $("lb-close").addEventListener("click", () => $("lb").classList.remove("on"));
 $("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").classList.remove("on"); });
 addEventListener("keydown", e => { if (e.key === "Escape") $("lb").classList.remove("on"); });
 
-/* ── image size control ─────────────────────────────────────── */
-let cols = 6;
-document.querySelectorAll(".sizer button").forEach(b => {
-  b.addEventListener("click", () => {
-    cols = +b.dataset.cols;
-    document.querySelectorAll(".sizer button").forEach(o =>
-      o.setAttribute("aria-pressed", String(o === b)));
-    $("strip").style.setProperty("--cols", cols);
-  });
-});
+/* ── image size control ─────────────────────────────────────────
+   Position 0 fits all steps on screen at once. Higher positions
+   enlarge the tiles and the strip scrolls horizontally. The top of
+   the range reaches the size used in the main study, so observers
+   can check detail at true study scale.                          */
+const SIZE_STOPS = 7;
+let tilePx = 0;
+
+function fitWidth() {
+  const n = CONFIG.steps.length;
+  const avail = $("strip").parentElement.clientWidth;
+  return Math.max(90, Math.floor((avail - (n - 1) * 8) / n));
+}
+
+function sizeForSlider(v) {
+  const lo = fitWidth();
+  const hi = Math.max(CONFIG.studyWidth, lo);
+  if (v <= 0) return lo;
+  if (hi <= lo) return lo;
+  // geometric spacing: small moves at the low end, coarser at the top
+  return Math.round(lo * Math.pow(hi / lo, v / (SIZE_STOPS - 1)));
+}
+
+function applySize() {
+  tilePx = sizeForSlider(+$("size").value);
+  $("strip").style.setProperty("--tile", tilePx + "px");
+  $("size-px").textContent = tilePx + "px";
+}
+
+$("size").addEventListener("input", applySize);
+addEventListener("resize", () => { if ($("strip").children.length) applySize(); });
 
 /* ── trial flow ─────────────────────────────────────────────── */
 function startTrial() {
@@ -390,8 +415,10 @@ function startTrial() {
   $("note").value = "";
   $("note-wrap").style.display = "none";
   render();
-  trialStart = performance.now();
   show("s-task");
+  applySize();          // needs the strip visible to measure available width
+  $("strip").scrollLeft = 0;
+  trialStart = performance.now();
 }
 
 $("ambig").addEventListener("change", e => {
@@ -407,8 +434,10 @@ $("next").addEventListener("click", () => {
     ms: Math.round(performance.now() - trialStart),
     ambiguous: $("ambig").checked,
     note: $("note").value.trim(),
-    columns: cols,
-    tileWidthPx: Math.round(($("strip").clientWidth - (cols - 1) * 8) / cols)
+    sizeSlider: +$("size").value,
+    tileWidthPx: tilePx,
+    fitWidthPx: fitWidth(),
+    studyWidthPx: CONFIG.studyWidth
   });
   idx++;
   if (idx < order.length) startTrial();
@@ -500,7 +529,14 @@ async function beginStudy() {
 
 $("go").addEventListener("click", () => {
   session.participant = $("pid").value.trim().replace(/[^\w-]/g, "") || "anon";
-  if (CONFIG.demoSet) { buildDemo(); show("s-demo"); }
+  if (CONFIG.demoSet) {
+    buildDemo();
+    show("s-demo");
+    const n = CONFIG.steps.length;
+    const avail = $("demo-strip").parentElement.clientWidth;
+    $("demo-strip").style.setProperty("--tile",
+      Math.max(90, Math.floor((avail - (n - 1) * 8) / n)) + "px");
+  }
   else beginStudy();
 });
 $("demo-go").addEventListener("click", beginStudy);
