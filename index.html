@@ -1,441 +1,491 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Texture Scale Study</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texture scale ordering — pilot</title>
+<style>
+  :root {
+    --surround: #7a7a7a;      /* neutral mid-grey: keeps simultaneous contrast off the stimuli */
+    --panel: #6e6e6e;
+    --ink: #f2f2f2;
+    --ink-dim: #cfcfcf;
+    --line: #5c5c5c;
+    --mark: #e8c547;           /* single accent, used only for active/selected state */
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--surround); color: var(--ink);
+    font-family: var(--mono); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1920px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 18px; }
+  p { margin: 0 0 12px; max-width: 68ch; color: var(--ink-dim); }
+  .screen { display: none; }
+  .screen.on { display: block; }
 
-  <script src="https://unpkg.com/jspsych@8"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-preload@2"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-browser-check@2"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2"></script>
-  <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    padding: 22px 24px; max-width: 74ch; margin: 40px auto;
+  }
+  label { display: block; margin: 16px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); }
+  input[type=text], textarea {
+    width: 100%; background: #5f5f5f; color: var(--ink);
+    border: 1px solid var(--line); padding: 9px 10px; font: inherit;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  button {
+    font: inherit; background: #5f5f5f; color: var(--ink);
+    border: 1px solid var(--line); padding: 9px 18px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #565656; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--mark); color: #2a2a2a; border-color: var(--mark); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #f0d05c; }
+  :focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
 
-  <link rel="stylesheet" href="https://unpkg.com/jspsych@8/css/jspsych.css">
+  .bar { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 6px; }
+  .count { font-size: 12px; letter-spacing: .08em; color: var(--ink-dim); }
+  .prompt { margin: 0 0 14px; color: var(--ink); max-width: none; }
+  .err { color: #ffb4b4; margin: 6px 0 0; font-size: 14px; }
+  [hidden] { display: none !important; }
 
-  <style>
-    /* Neutral mid-grey field: standard for psychophysics, and keeps the
-       surround from biasing perceived contrast in the stimuli. */
-    :root {
-      --field: #7f7f7f;
-      --ink: #111;
-      --panel: #eae8e4;
-      /* Stimuli are square and shown two-up in two rows. Size scales to
-         whatever the window allows, capped so it never exceeds the source
-         resolution. The 220px allowance covers the prompt, the gap between
-         intervals, and the response buttons. Falls back to 240px at the
-         smallest permitted window, which is what it used to be fixed at. */
-      --img-cap: 460px;
-      --img-size: min(
-        var(--img-cap),
-        calc((100vh - 150px) / 2),
-        calc((100vw - 80px) / 2)
-      );
-      --gap-within: 14px;  /* gap between the two images of one interval */
-      --gap-between: 22px; /* gap between the two intervals */
-    }
+  .strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px; margin: 0 0 14px;
+    max-width: var(--strip-max, 100%);
+  }
+  .tile {
+    min-width: 0; position: relative;
+    border: 1px solid var(--line); background: #666;
+    cursor: grab; user-select: none;
+  }
+  .tile { min-height: 90px; }
+  .tile img { display: block; width: 100%; height: auto; pointer-events: none; }
+  .missing {
+    padding: 26px 8px; text-align: center; font-size: 11px;
+    color: #ffb4b4; word-break: break-all; line-height: 1.4;
+  }
+  .tile.dragging { opacity: .35; cursor: grabbing; }
+  .tile.over { border-color: var(--mark); }
+  .tile:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+  .pos {
+    position: absolute; left: 0; top: 0; padding: 4px 14px;
+    background: rgba(0,0,0,.7); font-size: 26px; font-weight: 600;
+    line-height: 1.15; letter-spacing: .02em;
+  }
+  .ends { display: flex; justify-content: flex-end; align-items: center;
+          gap: 22px; flex-wrap: wrap; font-size: 11px;
+          letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim);
+          margin: 4px 0 20px; }
+  .sizer { display: flex; align-items: center; gap: 6px; }
+  .sizer button { padding: 4px 10px; font-size: 11px; letter-spacing: .08em; }
+  .sizer button[aria-pressed="true"] { background: var(--mark); color: #2a2a2a; border-color: var(--mark); }
 
-    html, body {
-      background: var(--field);
-      color: var(--ink);
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
+  .loading { text-align: center; padding: 80px 0; color: var(--ink-dim); }
+  .track { height: 2px; background: var(--line); margin-top: 14px; }
+  .track > div { height: 100%; background: var(--mark); width: 0; transition: width .15s linear; }
 
-    .jspsych-display-element { font-size: 16px; }
-
-    /* jsPsych centres its content in a wrapper with generous default
-       padding and a capped width. On the trial screens that padding is
-       the main source of dead space above and below the stimuli. */
-    .jspsych-content-wrapper { padding: 0 !important; }
-    .jspsych-content { max-width: none !important; padding: 0 !important; }
-
-    /* Readable text panel so instructions aren't set on mid-grey */
-    .prose {
-      max-width: 640px;
-      margin: 0 auto;
-      background: var(--panel);
-      padding: 28px 34px;
-      text-align: left;
-      line-height: 1.55;
-      border-radius: 3px;
-    }
-    .prose h2 { margin-top: 0; font-size: 20px; font-weight: 600; }
-    .prose ul { padding-left: 20px; }
-
-    /* --- Quadruple layout --------------------------------------------- */
-    .quad { display: flex; flex-direction: column; align-items: center;
-            gap: var(--gap-between); margin-bottom: 14px; }
-    .interval { display: flex; gap: var(--gap-within); }
-    .interval img {
-      width: var(--img-size); height: var(--img-size);
-      display: block; image-rendering: auto;
-    }
-    .quad-prompt { margin: 0 0 10px; font-size: 17px; }
-
-    .jspsych-btn {
-      font-size: 16px; padding: 8px 26px; margin: 0 10px;
-      border-radius: 3px; cursor: pointer;
-    }
-    .jspsych-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  </style>
+  pre {
+    background: #5f5f5f; border: 1px solid var(--line); padding: 12px;
+    max-height: 260px; overflow: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 900px) {
+    .strip { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
 </head>
-<body></body>
+<body>
+<div class="wrap">
+
+<!-- ═══ CONFIG lives in the script block at the bottom ═══ -->
+
+<section id="s-intro" class="screen on">
+  <div class="card">
+    <h1>Artistic texture coarseness ordering</h1>
+    <p>This pilot study helps determine if small changes in artistic texture coarseness are noticeable.</p>
+    <p>This must be done on a desktop computer, as the image size is a factor. If you are unable to complete it under ideal conditions, please do not continue as it can contaminate the results.</p>
+    <p>You'll see five sets of eight images. Each set is the same picture rendered at eight different texture scales. Your task is to order them from smallest to largest texture coarseness.</p>
+    <p>Visually this is analogous to zooming in on a painting — brush strokes and canvas substrate become larger.</p>
+    <p>Drag the images into order, from the finest texture first to the coarsest last. If you can't tell, go with your best guess — it's still useful statistically.</p>
+    <p>Once completed, you are given a file to download — please email that back to me.</p>
+    <p>Estimated time: 5 minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
+    <label for="pid">Your initials</label>
+    <input type="text" id="pid" maxlength="24" autocomplete="off" spellcheck="false"
+           aria-describedby="pid-err">
+    <p class="err" id="pid-err" role="alert" hidden>Please enter at least two characters.</p>
+    <p style="margin-top:18px; text-align:right"><button class="primary" id="go">Start</button></p>
+  </div>
+</section>
+
+<section id="s-demo" class="screen">
+  <div class="bar">
+    <h1 style="margin:0">Example</h1>
+  </div>
+  <p class="prompt">This is a correctly ordered set. Notice that both mark scale, and canvas scale, increases from 1 to 8.</p>
+  <div class="strip" id="demo-strip"></div>
+  <p style="margin: 6px 0 0; text-align:right"><button class="primary" id="demo-go">I understand — begin</button></p>
+</section>
+
+<section id="s-load" class="screen">
+  <div class="loading">
+    <div id="load-text">Loading images…</div>
+    <div class="track"><div id="load-bar"></div></div>
+  </div>
+</section>
+
+<section id="s-missing" class="screen">
+  <div class="card">
+    <h1>Images not found</h1>
+    <p id="miss-count"></p>
+    <p>Check these paths against what's actually in <code>images/</code> — usually the file extension or the step numbering in <code>CONFIG.imagePath</code>.</p>
+    <pre id="miss-list"></pre>
+    <p><button id="miss-go">Continue anyway</button></p>
+  </div>
+</section>
+
+<section id="s-task" class="screen">
+  <div class="bar">
+    <h1 style="margin:0">Arrange by texture scale</h1>
+    <span class="count" id="count"></span>
+  </div>
+  <p class="prompt">Finest texture first, coarsest last, reading along the top row then the bottom. Drag to reorder.  Click Small to zoom out.</p>
+  <div class="strip" id="strip"></div>
+  <div class="ends">
+    <span class="sizer">
+      <span>image size</span>
+      <button type="button" data-size="large" aria-pressed="true">large</button>
+      <button type="button" data-size="small" aria-pressed="false">small</button>
+    </span>
+    <button class="primary" id="next">Next</button>
+  </div>
+</section>
+
+<section id="s-done" class="screen">
+  <div class="card">
+    <h1>Done — thank you</h1>
+    <p>Your results file should have downloaded. If it didn't, use the button below, or copy the text and paste it into an email.</p>
+    <p><button class="primary" id="dl">Download again</button> <button id="copy">Copy to clipboard</button></p>
+    <pre id="out"></pre>
+  </div>
+</section>
+
+</div>
+
+
 <script>
-/* =====================================================================
-   CONFIGURATION — edit this block, leave the rest alone
-   ===================================================================== */
-
+/* ══════════════════════════════════════════════════════════════
+   CONFIG — the only part you should need to edit.
+   ══════════════════════════════════════════════════════════════ */
 const CONFIG = {
-  // DataPipe experiment ID (from your dashboard)
-  pipe_id: "Jv61YWfxyKAY",
+  // The twelve sweeps selected for the main study.
+  sets: ["set01","set02","set03","set04","set05","set06",
+         "set07","set08","set09","set10","set11","set12"],
 
-  // Prolific completion URL. Get the code from your Prolific study settings.
-  prolific_completion_url: "https://app.prolific.com/submissions/complete?cc=REPLACE_ME",
+  // Scale steps per sweep, ascending. Step 1 = finest texture.
+  steps: [1,2,3,4,5,6,7,8],
 
-  // Your content/style sets. These strings must match your filenames.
-  sets: ["set01", "set02", "set03", "set04",
-         "set05", "set06", "set07", "set08",
-         "set09", "set10", "set11", "set12"],
+  // Must match the exported filenames. If your steps are 0-based, change
+  // `steps` above to [0,1,2,3,4,5,6] rather than editing this.
+  imagePath: (set, step) => `images/${set}_step${String(step).padStart(2,"0")}.jpg`,
 
-  // Number of scale steps per set. C(6,4) = 15 quadruples per set.
-  n_steps: 6,
+  // Worked example shown before the task. Must NOT be one of the twelve
+  // study sweeps — showing its answer would contaminate that stimulus.
+  // Set to null to skip the example screen.
+  demoSet: "demo",
 
-  // How a stimulus filename is built. Adjust to match what you exported.
-  // Default expects:  images/set01_step03.jpg
-  image_path: (set, step) => `images/${set}_step${String(step).padStart(2, "0")}.jpg`,
+  // Width in CSS pixels used by the main MLDS study. Recorded with each
+  // trial so you can compare pilot viewing size against study size.
+  studyWidth: 480,
 
-  // Session structure. Each participant gets this many sets, and does the
-  // COMPLETE quadruple design for each — no partial coverage of any set.
-  sets_per_participant: 3,          // 3 x 15 = 45 real trials
-  n_catch_trials: 4,
+  // How many sweeps each participant orders, drawn at random from `sets`.
+  // Coverage accumulates across the sample rather than every person seeing
+  // all twelve. Set to null to present every sweep.
+  sweepsPerParticipant: 5,
 
-  // Catch trials contrast a tiny interval against a huge one. A participant
-  // paying any attention gets these right; used only for exclusion.
-  catch_small: [1, 2],
-  catch_large: [1, 6],
+  // Set false to keep sweeps in listed order (useful when debugging).
+  shuffleSets: true
+};
+/* ════════════════════════════════════════════════════════════ */
 
-  // Minimum window size. Below this the stimuli won't lay out correctly.
-  min_width: 1000,
-  min_height: 700
+const $ = id => document.getElementById(id);
+const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.random()*(i+1)|0; [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const show = id => { document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on"); };
+
+const session = {
+  participant: "",
+  started: new Date().toISOString(),
+  finished: null,
+  viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 },
+  studyWidth: CONFIG.studyWidth,
+  assignedSets: null,
+  trials: []
 };
 
-/* =====================================================================
-   SETUP
-   ===================================================================== */
+let order = [];        // sets, in presentation order
+let idx = 0;           // index into order
+let tiles = [];        // step numbers, left to right
+let trialStart = 0;
 
-const jsPsych = initJsPsych({
-  on_finish: () => {
-    // Only bounce back to Prolific if we actually came from there.
-    if (participant.from_prolific) {
-      window.location = CONFIG.prolific_completion_url;
-    }
-  }
-});
-
-// --- Participant identity ------------------------------------------------
-const prolific_pid = jsPsych.data.getURLVariable("PROLIFIC_PID");
-const study_id     = jsPsych.data.getURLVariable("STUDY_ID");
-const session_id   = jsPsych.data.getURLVariable("SESSION_ID");
-
-const participant = {
-  from_prolific: Boolean(prolific_pid),
-  id: prolific_pid || ("pilot_" + jsPsych.randomization.randomID(8))
-};
-
-const started_at = new Date().toISOString().replace(/[:.]/g, "-");
-const filename = `${participant.id}_${started_at}.csv`;
-
-/* =====================================================================
-   SET ASSIGNMENT
-
-   12 sets, 3 per participant. Random assignment gives each set roughly
-   a quarter of the sample: at 60-70 participants that is 15-18 observers
-   per set, each contributing one complete pass through its 15 quadruples.
-   ===================================================================== */
-
-const assigned_sets = jsPsych.randomization
-  .sampleWithoutReplacement(CONFIG.sets, CONFIG.sets_per_participant);
-
-// The worked example is drawn from a set this participant will NOT be
-// judging, so the instruction screen can't prime their responses.
-const unassigned = CONFIG.sets.filter(s => !assigned_sets.includes(s));
-const example_set = jsPsych.randomization.sampleWithoutReplacement(unassigned, 1)[0];
-
-jsPsych.data.addProperties({
-  participant_id: participant.id,
-  from_prolific: participant.from_prolific,
-  study_id: study_id,
-  session_id: session_id,
-  assigned_sets: assigned_sets.join(","),
-  example_set: example_set,
-  device_pixel_ratio: window.devicePixelRatio,
-  screen_w: window.screen.width,
-  screen_h: window.screen.height
-});
-
-/* =====================================================================
-   QUADRUPLE GENERATION
-   ===================================================================== */
-
-// All k-subsets of an array
-function combinations(arr, k) {
-  const out = [];
-  (function pick(start, chosen) {
-    if (chosen.length === k) { out.push(chosen.slice()); return; }
-    for (let i = start; i < arr.length; i++) {
-      chosen.push(arr[i]);
-      pick(i + 1, chosen);
-      chosen.pop();
-    }
-  })(0, []);
-  return out;
+/* ── inversion count against a target direction ─────────────── */
+function inversions(arr, ascending) {
+  let n = 0;
+  for (let i=0;i<arr.length;i++)
+    for (let j=i+1;j<arr.length;j++)
+      if (ascending ? arr[i] > arr[j] : arr[i] < arr[j]) n++;
+  return n;
 }
 
-const steps = Array.from({ length: CONFIG.n_steps }, (_, i) => i + 1);
-
-// C(6,4) = 15 quadruples. Sorted, so [a,b,c,d] splits into two
-// non-overlapping intervals (a,b) and (c,d).
-const quadruples = combinations(steps, 4);
-
-// Every assigned set crossed with every quadruple — the complete design.
-const trials = [];
-for (const set of assigned_sets) {
-  for (const q of quadruples) {
-    trials.push({ set: set, lower: [q[0], q[1]], upper: [q[2], q[3]] });
-  }
+/* ── preload ────────────────────────────────────────────────── */
+function preload(paths, onProgress) {
+  let done = 0;
+  const failed = [];
+  return Promise.all(paths.map(p => new Promise(res => {
+    const im = new Image();
+    const tick = () => { onProgress(++done, paths.length); res(); };
+    im.onload = tick;
+    im.onerror = () => { failed.push(p); tick(); };
+    im.src = p;
+  }))).then(() => failed);
 }
 
-// Catch trials, spread across the assigned sets
-const catch_sets = jsPsych.randomization
-  .sampleWithReplacement(assigned_sets, CONFIG.n_catch_trials);
-const catches = catch_sets.map(set => ({
-  set: set,
-  lower: CONFIG.catch_small,
-  upper: CONFIG.catch_large,
-  is_catch: true
-}));
+/* ── render the current strip ───────────────────────────────── */
+function render() {
+  const strip = $("strip");
+  strip.innerHTML = "";
+  tiles.forEach((step, i) => {
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.draggable = true;
+    el.tabIndex = 0;
+    el.dataset.i = i;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `Position ${i+1} of ${tiles.length}. Arrow keys to move.`);
 
-const trial_specs = jsPsych.randomization.shuffle(trials.concat(catches));
+    const src = CONFIG.imagePath(order[idx], step);
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    img.onerror = () => {
+      img.remove();
+      const m = document.createElement("div");
+      m.className = "missing";
+      m.textContent = "not found\n" + src;
+      el.insertBefore(m, el.firstChild);
+    };
+    el.appendChild(img);
 
-/* =====================================================================
-   TRIAL RENDERING
-   ===================================================================== */
+    const pos = document.createElement("span");
+    pos.className = "pos";
+    pos.textContent = i + 1;
+    el.appendChild(pos);
 
-function intervalHTML(set, pair) {
-  return `<div class="interval">
-    <img src="${CONFIG.image_path(set, pair[0])}" alt="">
-    <img src="${CONFIG.image_path(set, pair[1])}" alt="">
-  </div>`;
-}
-
-function buildTrial(spec) {
-  // Randomise which interval appears on top, so any vertical response bias
-  // doesn't align with interval size.
-  const upper_on_top = Math.random() < 0.5;
-  const top = upper_on_top ? spec.upper : spec.lower;
-  const bottom = upper_on_top ? spec.lower : spec.upper;
-
-  return {
-    type: jsPsychHtmlButtonResponse,
-    stimulus: `
-      <div class="quad-prompt">Which row shows the bigger change in texture scale?</div>
-      <div class="quad">
-        ${intervalHTML(spec.set, top)}
-        ${intervalHTML(spec.set, bottom)}
-      </div>`,
-    choices: ["Top row", "Bottom row"],
-    data: {
-      task: "mlds",
-      set: spec.set,
-      lower_interval: spec.lower.join("-"),
-      upper_interval: spec.upper.join("-"),
-      top_interval: top.join("-"),
-      bottom_interval: bottom.join("-"),
-      upper_on_top: upper_on_top,
-      is_catch: Boolean(spec.is_catch)
-    },
-    on_finish: (data) => {
-      // Did they choose the wider-spaced interval?
-      const chose_top = data.response === 0;
-      data.chose_upper = (chose_top === upper_on_top);
-      if (data.is_catch) data.catch_correct = data.chose_upper;
-    }
-  };
-}
-
-/* =====================================================================
-   TIMELINE
-   ===================================================================== */
-
-const timeline = [];
-
-// --- Device screening ----------------------------------------------------
-timeline.push({
-  type: jsPsychBrowserCheck,
-  inclusion_function: (data) => {
-    return data.mobile === false &&
-           data.width >= CONFIG.min_width &&
-           data.height >= CONFIG.min_height;
-  },
-  exclusion_message: (data) => {
-    if (data.mobile) {
-      return `<div class="prose"><h2>Desktop required</h2>
-        <p>This study presents images that have to be shown at a fixed size,
-        so it can't run on a phone or tablet. Please return the study on
-        Prolific so someone else can take it.</p></div>`;
-    }
-    return `<div class="prose"><h2>Window too small</h2>
-      <p>This study needs a window at least ${CONFIG.min_width} × ${CONFIG.min_height} pixels.
-      Try maximising your browser window and reloading. If your screen is
-      smaller than that, please return the study on Prolific.</p></div>`;
-  }
-});
-
-// --- Preload -------------------------------------------------------------
-// Only this participant's sets plus the example set: 4 x 6 = 24 images,
-// rather than all 12 x 6 = 72. Keeps the wait short on a slow connection.
-const all_images = [];
-for (const set of assigned_sets.concat([example_set])) {
-  for (const step of steps) all_images.push(CONFIG.image_path(set, step));
-}
-
-timeline.push({
-  type: jsPsychPreload,
-  images: all_images,
-  message: `<div class="prose"><p>Loading images. This takes a few
-    seconds on a slower connection.</p></div>`,
-  error_message: `<div class="prose"><h2>Images didn't load</h2>
-    <p>Something went wrong fetching the study images. Reload the page to
-    try again.</p></div>`,
-  show_progress_bar: true,
-  continue_after_error: false
-});
-
-// --- Consent -------------------------------------------------------------
-timeline.push({
-  type: jsPsychHtmlButtonResponse,
-  stimulus: `<div class="prose">
-    <h2>About this study</h2>
-    <p>You'll compare pairs of computer-generated images and judge how much
-    the texture changes between them. There are no right or wrong answers for
-    most of the comparisons — we're measuring how the change looks to people.</p>
-    <p>It takes about 10 minutes. We record your responses, your response times,
-    and basic information about your screen. We don't collect anything that
-    identifies you personally.</p>
-    <p>You can stop at any time by closing the tab.</p>
-    <p><em>[Replace this paragraph with your institution's approved consent
-    text and ethics approval number before launch.]</em></p>
-  </div>`,
-  choices: ["I agree to take part"]
-});
-
-// --- Fullscreen ----------------------------------------------------------
-timeline.push({
-  type: jsPsychFullscreen,
-  fullscreen_mode: true,
-  message: `<div class="prose"><p>The study runs in fullscreen so the images
-    are shown at a consistent size. Please don't zoom or resize while
-    it's running.</p></div>`,
-  button_label: "Continue"
-});
-
-// --- Instructions --------------------------------------------------------
-timeline.push({
-  type: jsPsychHtmlButtonResponse,
-  stimulus: `<div class="prose">
-    <h2>What to do</h2>
-    <p>On each screen you'll see two rows. Each row holds two versions of the
-    same image, differing in the <strong>size of the texture</strong> — the
-    scale of the brush marks, grain, or pattern.</p>
-    <p>Your job is to decide <strong>which row changes more</strong> between its
-    left and right image. Not which row has bigger texture overall — which row
-    has the bigger <em>difference</em>.</p>
-    <ul>
-      <li>Go with your first impression. Don't study them.</li>
-      <li>Judge texture size, not colour, brightness, or subject matter.</li>
-      <li>Some comparisons are close. Guess when you're unsure — that's expected.</li>
-      <li>There are ${trial_specs.length} comparisons. It goes quickly.</li>
-    </ul>
-  </div>`,
-  choices: ["Show me an example"]
-});
-
-timeline.push({
-  type: jsPsychHtmlButtonResponse,
-  stimulus: `
-    <div class="quad-prompt">Here the <strong>top row</strong> changes more.</div>
-    <div class="quad">
-      ${intervalHTML(example_set, [1, 6])}
-      ${intervalHTML(example_set, [1, 2])}
-    </div>`,
-  choices: ["Start"],
-  post_trial_gap: 400
-});
-
-// --- Main trials ---------------------------------------------------------
-trial_specs.forEach(spec => timeline.push(buildTrial(spec)));
-
-// --- Save ----------------------------------------------------------------
-timeline.push({
-  type: jsPsychPipe,
-  action: "save",
-  experiment_id: CONFIG.pipe_id,
-  filename: filename,
-  data_string: () => jsPsych.data.get().csv()
-});
-
-// --- Completion, with a fallback if the upload failed --------------------
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  choices: "NO_KEYS",
-  trial_duration: null,
-  stimulus: () => {
-    const save = jsPsych.data.get().filter({ trial_type: "pipe" }).values()[0];
-    const failed = save && save.success === false;
-
-    if (failed) {
-      return `<div class="prose">
-        <h2>Couldn't upload your responses</h2>
-        <p>Your answers are safe in this browser tab but didn't reach our
-        server. Click below to download the file, then message us through
-        Prolific and attach it. You'll be paid either way.</p>
-        <p><button class="jspsych-btn" id="dl">Download my responses</button></p>
-        <p>Then return to Prolific:
-        <a href="${CONFIG.prolific_completion_url}">complete the study</a>.</p>
-      </div>`;
-    }
-
-    return `<div class="prose">
-      <h2>Thank you</h2>
-      <p>Your responses have been recorded.
-      ${participant.from_prolific
-        ? "You'll be returned to Prolific in a moment."
-        : "This was a pilot run — no Prolific redirect."}</p>
-    </div>`;
-  },
-  on_load: () => {
-    const btn = document.getElementById("dl");
-    if (!btn) return;
-    btn.addEventListener("click", () => {
-      const blob = new Blob([jsPsych.data.get().csv()], { type: "text/csv" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
+    el.addEventListener("dragstart", onDragStart);
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", e => e.currentTarget.classList.remove("over"));
+    el.addEventListener("drop", onDrop);
+    el.addEventListener("dragend", e => {
+      e.currentTarget.classList.remove("dragging");
+      document.querySelectorAll(".tile").forEach(t => t.classList.remove("over"));
     });
-  },
-  on_start: () => {
-    const save = jsPsych.data.get().filter({ trial_type: "pipe" }).values()[0];
-    const failed = save && save.success === false;
-    // Give a successful run a couple of seconds, then redirect.
-    if (!failed) jsPsych.pluginAPI.setTimeout(() => jsPsych.finishTrial(), 2500);
+    el.addEventListener("keydown", onKey);
+
+    strip.appendChild(el);
+  });
+  $("count").textContent = `set ${idx+1} of ${order.length}`;
+}
+
+/* ── drag reordering ────────────────────────────────────────── */
+let dragFrom = null;
+function onDragStart(e) {
+  dragFrom = +e.currentTarget.dataset.i;
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", String(dragFrom)); // Firefox needs this
+}
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("over"); }
+function onDrop(e) {
+  e.preventDefault();
+  const to = +e.currentTarget.dataset.i;
+  if (dragFrom === null || dragFrom === to) return;
+  const [moved] = tiles.splice(dragFrom, 1);
+  tiles.splice(to, 0, moved);
+  dragFrom = null;
+  render();
+}
+
+/* ── keyboard reordering ────────────────────────────────────── */
+function onKey(e) {
+  const i = +e.currentTarget.dataset.i;
+  let to = null;
+  if (e.key === "ArrowLeft"  && i > 0) to = i - 1;
+  if (e.key === "ArrowRight" && i < tiles.length - 1) to = i + 1;
+  if (to === null) return;
+  e.preventDefault();
+  [tiles[i], tiles[to]] = [tiles[to], tiles[i]];
+  render();
+  document.querySelector(`.tile[data-i="${to}"]`).focus();
+}
+
+/* ── image size control ─────────────────────────────────────── */
+/* Two rows of four. "large" lets the grid use the full column width;
+   "small" caps it so the whole set sits higher on screen without
+   scrolling. Tiles stay square-ish either way. */
+const SIZE_MAX = { large: "100%", small: "744px" };
+let sizeMode = "large";
+
+function applySize() {
+  $("strip").style.setProperty("--strip-max", SIZE_MAX[sizeMode]);
+  document.querySelectorAll(".sizer button").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.size === sizeMode)));
+}
+
+document.querySelectorAll(".sizer button").forEach(b => {
+  b.addEventListener("click", () => { sizeMode = b.dataset.size; applySize(); });
+});
+
+/* ── trial flow ─────────────────────────────────────────────── */
+function startTrial() {
+  tiles = shuffle(CONFIG.steps.slice());
+  // avoid handing anyone a strip that is already correct
+  if (inversions(tiles, true) === 0 || inversions(tiles, false) === 0) {
+    [tiles[0], tiles[3]] = [tiles[3], tiles[0]];
+  }
+  render();
+  show("s-task");
+  applySize();
+  trialStart = performance.now();
+}
+
+$("next").addEventListener("click", () => {
+  session.trials.push({
+    set: order[idx],
+    order: tiles.slice(),
+    inversionsAscending: inversions(tiles, true),
+    inversionsDescending: inversions(tiles, false),
+    ms: Math.round(performance.now() - trialStart),
+    sizeMode: sizeMode,
+    tileWidthPx: Math.round(($("strip").clientWidth - 3 * 8) / 4)
+  });
+  idx++;
+  if (idx < order.length) startTrial();
+  else finish();
+});
+
+/* ── finish and export ──────────────────────────────────────── */
+function filename() {
+  const t = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  return `pilot_${session.participant || "anon"}_${t}.json`;
+}
+function download() {
+  const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function finish() {
+  session.finished = new Date().toISOString();
+  $("out").textContent = JSON.stringify(session, null, 2);
+  show("s-done");
+  download();
+}
+$("dl").addEventListener("click", download);
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(session, null, 2));
+    $("copy").textContent = "Copied";
+    setTimeout(() => $("copy").textContent = "Copy to clipboard", 1600);
+  } catch {
+    $("copy").textContent = "Select the text below and copy it";
   }
 });
 
-jsPsych.run(timeline);
+/* ── worked example ─────────────────────────────────────────── */
+function buildDemo() {
+  const strip = $("demo-strip");
+  strip.innerHTML = "";
+  CONFIG.steps.forEach((step, i) => {
+    const el = document.createElement("div");
+    el.className = "tile";
+    el.style.cursor = "default";
+    const src = CONFIG.imagePath(CONFIG.demoSet, step);
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    img.onerror = () => {
+      img.remove();
+      const m = document.createElement("div");
+      m.className = "missing";
+      m.textContent = "not found\n" + src;
+      el.insertBefore(m, el.firstChild);
+    };
+    el.appendChild(img);
+    const pos = document.createElement("span");
+    pos.className = "pos";
+    pos.textContent = i + 1;
+    el.appendChild(pos);
+    strip.appendChild(el);
+  });
+}
+
+/* ── boot ───────────────────────────────────────────────────── */
+async function beginStudy() {
+  order = CONFIG.sets.slice();
+  if (CONFIG.shuffleSets) shuffle(order);
+  if (CONFIG.sweepsPerParticipant) {
+    order = order.slice(0, CONFIG.sweepsPerParticipant);
+  }
+  session.assignedSets = order.slice();
+
+  show("s-load");
+  const paths = [];
+  order.forEach(s => CONFIG.steps.forEach(st => paths.push(CONFIG.imagePath(s, st))));
+  const failed = await preload(paths, (d, n) => {
+    $("load-bar").style.width = (100 * d / n) + "%";
+    $("load-text").textContent = `Loading images… ${d} of ${n}`;
+  });
+
+  idx = 0;
+  if (failed.length) {
+    $("miss-count").textContent =
+      `${failed.length} of ${paths.length} images failed to load. First 12 shown:`;
+    $("miss-list").textContent = failed.slice(0, 12).join("\n");
+    show("s-missing");
+    return;
+  }
+  startTrial();
+}
+
+function cleanPid() {
+  return $("pid").value.trim().replace(/[^\w-]/g, "");
+}
+
+$("pid").addEventListener("input", () => {
+  if (cleanPid().length >= 2) $("pid-err").hidden = true;
+});
+
+$("pid").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+
+$("go").addEventListener("click", () => {
+  const pid = cleanPid();
+  if (pid.length < 2) {
+    $("pid-err").hidden = false;
+    $("pid").focus();
+    return;
+  }
+  session.participant = pid;
+  if (CONFIG.demoSet) { buildDemo(); show("s-demo"); }
+  else beginStudy();
+});
+$("demo-go").addEventListener("click", beginStudy);
+$("miss-go").addEventListener("click", startTrial);
+$("pid").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
 </script>
+</body>
 </html>
