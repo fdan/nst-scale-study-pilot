@@ -52,8 +52,9 @@
   .prompt { margin: 0 0 16px; color: var(--ink); }
 
   .strip {
-    display: grid; grid-template-columns: repeat(var(--cols, 6), 1fr);
+    display: grid; grid-template-columns: repeat(4, 1fr);
     gap: 8px; margin: 0 0 14px;
+    max-width: var(--strip-max, 100%);
   }
   .tile {
     min-width: 0; position: relative;
@@ -70,13 +71,9 @@
   .tile.over { border-color: var(--mark); }
   .tile:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
   .pos {
-    position: absolute; left: 0; top: 0; padding: 2px 6px;
-    background: rgba(0,0,0,.55); font-size: 11px; letter-spacing: .06em;
-  }
-  .zoom {
-    position: absolute; right: 4px; bottom: 4px;
-    background: rgba(0,0,0,.55); border: 0; color: var(--ink);
-    padding: 3px 7px; font-size: 11px; cursor: zoom-in;
+    position: absolute; left: 0; top: 0; padding: 4px 14px;
+    background: rgba(0,0,0,.7); font-size: 26px; font-weight: 600;
+    line-height: 1.15; letter-spacing: .02em;
   }
   .ends { display: flex; justify-content: space-between; align-items: center;
           gap: 16px; flex-wrap: wrap; font-size: 11px;
@@ -89,13 +86,6 @@
   .flag input { margin-top: 4px; }
   .flag span { color: var(--ink-dim); }
 
-  .lightbox {
-    position: fixed; inset: 0; background: var(--surround);
-    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 20;
-  }
-  .lightbox.on { display: flex; }
-  .lightbox img { border: 1px solid var(--line); }
-
   .loading { text-align: center; padding: 80px 0; color: var(--ink-dim); }
   .track { height: 2px; background: var(--line); margin-top: 14px; }
   .track > div { height: 100%; background: var(--mark); width: 0; transition: width .15s linear; }
@@ -106,7 +96,7 @@
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   @media (max-width: 900px) {
-    .strip { --cols: 3; }
+    .strip { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -118,7 +108,7 @@
 <section id="s-intro" class="screen on">
   <div class="card">
     <h1>Texture scale ordering</h1>
-    <p>You'll see twelve sets of six images. Each set is the same picture rendered at six different texture scales.</p>
+    <p>You'll see four sets of eight images. Each set is the same picture rendered at eight different texture scales.</p>
     <p>Drag the images into order, from the finest texture first to the coarsest last. You'll see a worked example before you start. Click any image to see it larger, and use the size control if the differences are hard to make out.</p>
     <p>If a set doesn't seem to have a single sensible order, put it in your best guess and tick the box below the strip. That's a useful answer, not a failure — it's the thing this pilot is looking for.</p>
     <p>About fifteen minutes. Nothing is uploaded; you'll get a file at the end to send back.</p>
@@ -133,8 +123,8 @@
     <h1 style="margin:0">Worked example</h1>
     <span class="count">not one of the twelve sets</span>
   </div>
-  <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 6 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
-  <div class="strip" id="demo-strip" style="--cols:6"></div>
+  <p class="prompt">This is a correctly ordered set. The texture gets coarser from 1 to 8 — the marks, grain or brush size grow, while the picture underneath stays the same. That growth is the only thing you're sorting on.</p>
+  <div class="strip" id="demo-strip"></div>
   <p style="margin: 6px 0 0"><button class="primary" id="demo-go">I understand — begin</button></p>
 </section>
 
@@ -160,15 +150,14 @@
     <h1 style="margin:0">Arrange by texture scale</h1>
     <span class="count" id="count"></span>
   </div>
-  <p class="prompt">Finest texture first, coarsest last. Drag to reorder, or focus an image and use the arrow keys. If the differences are hard to see, make the images larger, or click one to view it at full size.</p>
+  <p class="prompt">Finest texture first, coarsest last, reading along the top row then the bottom. Drag to reorder, or focus an image and use the arrow keys. Use the size control below if you'd rather see the whole set at once.</p>
   <div class="strip" id="strip"></div>
   <div class="ends">
-    <span>finest (1) → coarsest (6), reading left to right</span>
+    <span>finest (1) → coarsest (8), reading left to right, top row first</span>
     <span class="sizer">
       <span>image size</span>
-      <button type="button" data-cols="6" aria-pressed="true">small</button>
-      <button type="button" data-cols="3" aria-pressed="false">medium</button>
-      <button type="button" data-cols="2" aria-pressed="false">large</button>
+      <button type="button" data-size="large" aria-pressed="true">large</button>
+      <button type="button" data-size="small" aria-pressed="false">small</button>
     </span>
   </div>
   <div class="flag">
@@ -195,10 +184,6 @@
 
 </div>
 
-<div class="lightbox" id="lb">
-  <img id="lb-img" alt="">
-  <button id="lb-close">Close</button>
-</div>
 
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -221,9 +206,14 @@ const CONFIG = {
   // Set to null to skip the example screen.
   demoSet: "demo",
 
-  // Width in CSS pixels used by the main MLDS study. The enlarge view uses
-  // this so observers can check detail at true study size.
+  // Width in CSS pixels used by the main MLDS study. Recorded with each
+  // trial so you can compare pilot viewing size against study size.
   studyWidth: 480,
+
+  // How many sweeps each participant orders, drawn at random from `sets`.
+  // Coverage accumulates across the sample rather than every person seeing
+  // all twelve. Set to null to present every sweep.
+  sweepsPerParticipant: 4,
 
   // Set false to keep sweeps in listed order (useful when debugging).
   shuffleSets: true
@@ -240,6 +230,7 @@ const session = {
   finished: null,
   viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 },
   studyWidth: CONFIG.studyWidth,
+  assignedSets: null,
   trials: []
 };
 
@@ -301,15 +292,6 @@ function render() {
     pos.textContent = i + 1;
     el.appendChild(pos);
 
-    const z = document.createElement("button");
-    z.className = "zoom";
-    z.type = "button";
-    z.textContent = "enlarge";
-    z.setAttribute("aria-label", "Enlarge this image");
-    z.addEventListener("click", e => { e.stopPropagation(); openLb(img.src); });
-    el.appendChild(z);
-
-    el.addEventListener("click", () => openLb(img.src));
     el.addEventListener("dragstart", onDragStart);
     el.addEventListener("dragover", onDragOver);
     el.addEventListener("dragleave", e => e.currentTarget.classList.remove("over"));
@@ -357,26 +339,21 @@ function onKey(e) {
   document.querySelector(`.tile[data-i="${to}"]`).focus();
 }
 
-/* ── lightbox at true study size ────────────────────────────── */
-function openLb(src) {
-  $("lb-img").src = src;
-  $("lb-img").style.width = CONFIG.studyWidth + "px";
-  $("lb").classList.add("on");
-  $("lb-close").focus();
-}
-$("lb-close").addEventListener("click", () => $("lb").classList.remove("on"));
-$("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").classList.remove("on"); });
-addEventListener("keydown", e => { if (e.key === "Escape") $("lb").classList.remove("on"); });
-
 /* ── image size control ─────────────────────────────────────── */
-let cols = 6;
+/* Two rows of four. "large" lets the grid use the full column width;
+   "small" caps it so the whole set sits higher on screen without
+   scrolling. Tiles stay square-ish either way. */
+const SIZE_MAX = { large: "100%", small: "620px" };
+let sizeMode = "large";
+
+function applySize() {
+  $("strip").style.setProperty("--strip-max", SIZE_MAX[sizeMode]);
+  document.querySelectorAll(".sizer button").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.size === sizeMode)));
+}
+
 document.querySelectorAll(".sizer button").forEach(b => {
-  b.addEventListener("click", () => {
-    cols = +b.dataset.cols;
-    document.querySelectorAll(".sizer button").forEach(o =>
-      o.setAttribute("aria-pressed", String(o === b)));
-    $("strip").style.setProperty("--cols", cols);
-  });
+  b.addEventListener("click", () => { sizeMode = b.dataset.size; applySize(); });
 });
 
 /* ── trial flow ─────────────────────────────────────────────── */
@@ -390,8 +367,9 @@ function startTrial() {
   $("note").value = "";
   $("note-wrap").style.display = "none";
   render();
-  trialStart = performance.now();
   show("s-task");
+  applySize();
+  trialStart = performance.now();
 }
 
 $("ambig").addEventListener("change", e => {
@@ -407,8 +385,8 @@ $("next").addEventListener("click", () => {
     ms: Math.round(performance.now() - trialStart),
     ambiguous: $("ambig").checked,
     note: $("note").value.trim(),
-    columns: cols,
-    tileWidthPx: Math.round(($("strip").clientWidth - (cols - 1) * 8) / cols)
+    sizeMode: sizeMode,
+    tileWidthPx: Math.round(($("strip").clientWidth - 3 * 8) / 4)
   });
   idx++;
   if (idx < order.length) startTrial();
@@ -452,7 +430,7 @@ function buildDemo() {
   CONFIG.steps.forEach((step, i) => {
     const el = document.createElement("div");
     el.className = "tile";
-    el.style.cursor = "zoom-in";
+    el.style.cursor = "default";
     const src = CONFIG.imagePath(CONFIG.demoSet, step);
     const img = document.createElement("img");
     img.src = src;
@@ -469,7 +447,6 @@ function buildDemo() {
     pos.className = "pos";
     pos.textContent = i + 1;
     el.appendChild(pos);
-    el.addEventListener("click", () => openLb(src));
     strip.appendChild(el);
   });
 }
@@ -478,6 +455,10 @@ function buildDemo() {
 async function beginStudy() {
   order = CONFIG.sets.slice();
   if (CONFIG.shuffleSets) shuffle(order);
+  if (CONFIG.sweepsPerParticipant) {
+    order = order.slice(0, CONFIG.sweepsPerParticipant);
+  }
+  session.assignedSets = order.slice();
 
   show("s-load");
   const paths = [];
